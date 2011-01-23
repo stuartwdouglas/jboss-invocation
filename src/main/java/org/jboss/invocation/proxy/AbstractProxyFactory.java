@@ -29,14 +29,15 @@ import java.util.Map;
 
 import org.jboss.classfilewriter.AccessFlag;
 import org.jboss.classfilewriter.ClassMethod;
+import org.jboss.classfilewriter.code.BranchEnd;
 import org.jboss.classfilewriter.code.CodeAttribute;
-import org.jboss.invocation.MethodIdentifier;
+import org.jboss.classfilewriter.code.CodeLocation;
 
 public abstract class AbstractProxyFactory<T> extends AbstractSubclassFactory<T> {
 
-    private static final String METHOD_IDENTIFIER_FIELD_PREFIX = "METHOD$$IDENTIFIER";
+    private static final String METHOD_FIELD_PREFIX = "METHOD$$IDENTIFIER";
 
-    private static final String METHID_IDENTIFIER_FIELD_DESCRIPTOR = "Lorg/jboss/invocation/MethodIdentifier;";
+    private static final String METHOD_FIELD_DESCRIPTOR = "Ljava/lang/reflect/Method;";
 
     private final Map<Method, String> methodIdentifiers = new HashMap<Method, String>();
 
@@ -74,39 +75,59 @@ public abstract class AbstractProxyFactory<T> extends AbstractSubclassFactory<T>
     }
 
     /**
-     * Writes the bytecode to load an instance of MethodIdentifier for the given method onto the stack.
+     * Writes the bytecode to load an instance of Method for the given method onto the stack and set it to accessible
      * <p>
-     * If loadMethodIdentifier has not already been called for the given identifier then a static field to hold the identifier
-     * is added to the class, and code is added to the static constructor to initalize the field to the correct MethodIdentifier
-     * 
+     * If loadMethod has not already been called for the given method then a static field to hold the method is added to the
+     * class, and code is added to the static constructor to initalize the field to the correct Method
+     *
      */
     protected void loadMethodIdentifier(Method methodToLoad, ClassMethod method) {
         if (!methodIdentifiers.containsKey(methodToLoad)) {
             int identifierNo = identifierCount++;
-            String fieldName = METHOD_IDENTIFIER_FIELD_PREFIX + identifierNo;
-            classFile.addField(AccessFlag.PRIVATE | AccessFlag.STATIC, fieldName, MethodIdentifier.class);
+            String fieldName = METHOD_FIELD_PREFIX + identifierNo;
+            classFile.addField(AccessFlag.PRIVATE | AccessFlag.STATIC, fieldName, Method.class);
             methodIdentifiers.put(methodToLoad, fieldName);
-            // we need to create the method identifier in the static constructor
+            // we need to create the method in the static constructor
             CodeAttribute ca = staticConstructor.getCodeAttribute();
-            //push the method return type onto the stack
-            ca.ldc(methodToLoad.getReturnType().getName());
-            // push the method name onto the stack
+            // we need to call getDeclaredMethods and then iterate
+            ca.loadClass(methodToLoad.getDeclaringClass().getName());
+            ca.invokevirtual("java.lang.Class", "getDeclaredMethods", "()[Ljava/lang/reflect/Method;");
+            ca.dup();
+            ca.arraylength();
+            ca.dup();
+            ca.istore(0);
+            CodeLocation loopBegin = ca.mark();
+            ca.aconstNull();
+            ca.astore(1);
+            ca.aconstNull();
+            ca.astore(2);
+            BranchEnd loopEnd = ca.ifeq();
+            ca.dup();
+            ca.iinc(0, -1);
+            ca.iload(0);
+            ca.dupX1();
+            ca.aaload();
+            ca.dup();
+            ca.astore(2);
+            ca.checkcast("java.lang.reflect.Method");
+            ca.invokevirtual("java.lang.reflect.Method", "getName", "()Ljava/lang/String;");
             ca.ldc(methodToLoad.getName());
-            Class<?>[] parameters = methodToLoad.getParameterTypes();
-            // now we need a new array
-            ca.iconst(parameters.length);
-            ca.anewarray(String.class.getName());
-            for (int i = 0; i < parameters.length; ++i) {
-                ca.dup(); //dup the array
-                ca.iconst(i); //the array index to store it
-                ca.ldc(parameters[i].getName());
-                ca.aastore();
-            }
-            ca.invokestatic(MethodIdentifier.class.getName(), "getIdentifier", "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;)Lorg/jboss/invocation/MethodIdentifier;");
-            ca.putstatic(getClassName(), fieldName, METHID_IDENTIFIER_FIELD_DESCRIPTOR);
+            ca.invokevirtual("java.lang.Object", "equals", "(Ljava/lang/Object;)Z");
+            ca.ifEq(loopBegin);
+            // just match method name for now
+            ca.aload(2);
+            ca.checkcast("java.lang.reflect.Method");
+            ca.putstatic(getClassName(), fieldName, METHOD_FIELD_DESCRIPTOR);
+            // BranchEnd gotoEnd = ca.gotoInstruction();
+            ca.branchEnd(loopEnd);
+            // ca.newInstruction("java.lang.RuntimeException");
+            // ca.ldc("Could not find method " + methodToLoad);
+            // ca.invokespecial("java.lang.RuntimeException", "<init>", "(Ljava/lang/String;)V");
+            // ca.athrow();
+            // ca.branchEnd(gotoEnd);
         }
         String fieldName = methodIdentifiers.get(methodToLoad);
-        method.getCodeAttribute().getstatic(getClassName(), fieldName, METHID_IDENTIFIER_FIELD_DESCRIPTOR);
+        method.getCodeAttribute().getstatic(getClassName(), fieldName, METHOD_FIELD_DESCRIPTOR);
     }
 
 }

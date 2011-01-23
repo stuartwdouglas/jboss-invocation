@@ -22,6 +22,9 @@
 
 package org.jboss.invocation.proxy;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.security.ProtectionDomain;
 
 import org.jboss.classfilewriter.ClassFile;
@@ -106,6 +109,17 @@ public abstract class AbstractClassFactory<T> {
             synchronized (this) {
                 if (generatedClass == null) {
                     generateClass();
+                    try {
+                        FileOutputStream out = new FileOutputStream("/tmp/a.class");
+                        out.write(classFile.toBytecode());
+                    } catch (FileNotFoundException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+
                     if (protectionDomain == null) {
                         generatedClass = (Class<? extends T>)classFile.define(classLoader);
                     } else {

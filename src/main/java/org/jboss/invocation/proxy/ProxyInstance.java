@@ -22,10 +22,10 @@
 
 package org.jboss.invocation.proxy;
 
-import org.jboss.invocation.InvocationDispatcher;
+import java.lang.reflect.InvocationHandler;
 
 /**
- * Class that is implemented by all proxy classes. Contains methods to get and set the {@link InvocationDispatcher}
+ * Class that is implemented by all proxy classes. Contains methods to get and set the InvocationHandler
  * <p>
  * The method names do not follow normal java naming conventions to minimise the chance of name collisions with methods on the
  * proxy
@@ -35,8 +35,8 @@ import org.jboss.invocation.InvocationDispatcher;
  */
 public interface ProxyInstance {
 
-    public void _setProxyInvocationDispatcher(InvocationDispatcher dispatcher);
+    public void _setProxyInvocationHandler(InvocationHandler dispatcher);
 
-    public InvocationDispatcher _getProxyInvocationDispatcher();
+    public InvocationHandler _getProxyInvocationHandler();
 
 }

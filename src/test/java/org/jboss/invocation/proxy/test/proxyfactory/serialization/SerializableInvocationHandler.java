@@ -19,23 +19,21 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.jboss.proxy.test.proxyfactory;
+package org.jboss.invocation.proxy.test.proxyfactory.serialization;
 
-import org.jboss.invocation.Invocation;
-import org.jboss.invocation.InvocationDispatcher;
-import org.jboss.invocation.InvocationException;
-import org.jboss.invocation.InvocationReply;
+import java.io.Serializable;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
 
-public class SimpleDispatcher implements InvocationDispatcher {
+public class SerializableInvocationHandler implements InvocationHandler, Serializable {
+    private int state;
 
-    public static boolean invoked = false;
-    public static Class<?> declaringClass;
-
-    @Override
-    public InvocationReply dispatch(Invocation invocation) throws InvocationException {
-        invoked = true;
-        declaringClass = invocation.getDeclaringClass();
-        return new InvocationReply(invocation);
+    public int getState() {
+        return state;
     }
 
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        return args;
+    }
 }

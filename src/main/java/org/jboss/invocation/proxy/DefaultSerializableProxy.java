@@ -23,9 +23,8 @@
 package org.jboss.invocation.proxy;
 
 import java.io.ObjectStreamException;
+import java.lang.reflect.InvocationHandler;
 import java.security.PrivilegedAction;
-
-import org.jboss.invocation.InvocationDispatcher;
 
 /**
  * Serialized representation of a proxy.
@@ -35,19 +34,19 @@ import org.jboss.invocation.InvocationDispatcher;
  */
 public class DefaultSerializableProxy implements SerializableProxy {
 
-    private InvocationDispatcher dispatcher;
+    private InvocationHandler handler;
     private String proxyClassName;
 
     public void setProxyInstance(ProxyInstance proxy) {
         this.proxyClassName = proxy.getClass().getName();
-        this.dispatcher = proxy._getProxyInvocationDispatcher();
+        this.handler = proxy._getProxyInvocationHandler();
     }
 
     protected Object readResolve() throws ObjectStreamException {
         try {
             Class<?> proxyClass = getProxyClass();
             ProxyInstance instance = (ProxyInstance) proxyClass.newInstance();
-            instance._setProxyInvocationDispatcher(dispatcher);
+            instance._setProxyInvocationHandler(handler);
             return instance;
         } catch (InstantiationException e) {
             throw new RuntimeException(e);

@@ -19,7 +19,7 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.jboss.proxy.test.proxyfactory.serialization;
+package org.jboss.invocation.proxy.test.proxyfactory.serialization;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,10 +41,10 @@ public class SerializationTest {
     public void simpleSerializationTest() throws InstantiationException, IllegalAccessException, IOException,
             ClassNotFoundException {
         ProxyFactory<SerializableClass> proxyFactory = new ProxyFactory<SerializableClass>(SerializableClass.class);
-        SerializableInvocationDispatcher dispatcher = new SerializableInvocationDispatcher();
-        SerializableClass proxy = proxyFactory.newInstance(dispatcher);
+        SerializableInvocationHandler handler = new SerializableInvocationHandler();
+        SerializableClass proxy = proxyFactory.newInstance(handler);
         proxy.invoke(10);
-        Assert.assertEquals(10, dispatcher.getState());
+        Assert.assertEquals(10, handler.getState());
         proxy.state = 100;
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         ObjectOutputStream outputStream = new ObjectOutputStream(bytes);
@@ -53,8 +53,8 @@ public class SerializationTest {
         ObjectInputStream inputStream = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()));
         SerializableClass deserializedProxy = (SerializableClass) inputStream.readObject();
         Assert.assertEquals(100, deserializedProxy.state);
-        Assert.assertEquals(10, ((SerializableInvocationDispatcher) ((ProxyInstance) deserializedProxy)
-                ._getProxyInvocationDispatcher()).getState());
+        Assert.assertEquals(10, ((SerializableInvocationHandler) ((ProxyInstance) deserializedProxy)
+                ._getProxyInvocationHandler()).getState());
     }
 
     @Test
@@ -62,7 +62,7 @@ public class SerializationTest {
             ClassNotFoundException {
         ProxyFactory<SerializableClass> proxyFactory = new ProxyFactory<SerializableClass>(SerializableClass.class);
         proxyFactory.setSerializableProxyClass(DefaultSerializableProxy.class);
-        SerializableInvocationDispatcher dispatcher = new SerializableInvocationDispatcher();
+        SerializableInvocationHandler dispatcher = new SerializableInvocationHandler();
         SerializableClass proxy = proxyFactory.newInstance(dispatcher);
         proxy.invoke(10);
         Assert.assertEquals(10, dispatcher.getState());
@@ -74,8 +74,8 @@ public class SerializationTest {
         ObjectInputStream inputStream = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()));
         SerializableClass deserializedProxy = (SerializableClass) inputStream.readObject();
         Assert.assertEquals(0, deserializedProxy.state);
-        Assert.assertEquals(10, ((SerializableInvocationDispatcher) ((ProxyInstance) deserializedProxy)
-                ._getProxyInvocationDispatcher()).getState());
+        Assert.assertEquals(10, ((SerializableInvocationHandler) ((ProxyInstance) deserializedProxy)
+                ._getProxyInvocationHandler()).getState());
     }
 
     @Test
@@ -88,7 +88,7 @@ public class SerializationTest {
         ProxyFactory<SerializableClass> proxyFactory = new ProxyFactory<SerializableClass>("org.jboss.proxy.test.SomeProxy",
                 SerializableClass.class, classLoader);
         proxyFactory.setSerializableProxyClass(TestSerializableProxy.class);
-        SerializableInvocationDispatcher dispatcher = new SerializableInvocationDispatcher();
+        SerializableInvocationHandler dispatcher = new SerializableInvocationHandler();
         SerializableClass proxy = proxyFactory.newInstance(dispatcher);
         Class<?> proxyClass = proxyFactory.defineClass();
         proxy.invoke(10);
@@ -101,8 +101,8 @@ public class SerializationTest {
         ObjectInputStream inputStream = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()));
         SerializableClass deserializedProxy = (SerializableClass) inputStream.readObject();
         Assert.assertEquals(0, deserializedProxy.state);
-        Assert.assertEquals(10, ((SerializableInvocationDispatcher) ((ProxyInstance) deserializedProxy)
-                ._getProxyInvocationDispatcher()).getState());
+        Assert.assertEquals(10, ((SerializableInvocationHandler) ((ProxyInstance) deserializedProxy)
+                ._getProxyInvocationHandler()).getState());
         Assert.assertNotSame(proxyFactory.defineClass(), deserializedProxy.getClass());
         Assert.assertEquals(deserializedProxy.getClass().getClassLoader(), getClass().getClassLoader());
     }

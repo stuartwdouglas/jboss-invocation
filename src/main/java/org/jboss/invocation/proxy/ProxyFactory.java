@@ -24,6 +24,7 @@ package org.jboss.invocation.proxy;
 
 import java.io.ObjectStreamException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.security.ProtectionDomain;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,39 +34,35 @@ import org.jboss.classfilewriter.ClassMethod;
 import org.jboss.classfilewriter.code.BranchEnd;
 import org.jboss.classfilewriter.code.CodeAttribute;
 import org.jboss.classfilewriter.util.Boxing;
-import org.jboss.invocation.Invocation;
-import org.jboss.invocation.InvocationDispatcher;
-import org.jboss.invocation.InvocationReply;
-import org.jboss.invocation.MethodIdentifier;
 
 /**
  * Proxy Factory that generates proxis that delegate all calls to an {@link InvocationDispatcher}.
  * <p>
  * Typical usage looks like:
  * <p>
- * 
+ *
  * <pre>
  * ProxyFactory&lt;SimpleClass&gt; proxyFactory = new ProxyFactory&lt;SimpleClass&gt;(SimpleClass.class);
  * SimpleClass instance = proxyFactory.newInstance(new SimpleDispatcher());
  * </pre>
- * 
+ *
  * </p>
  * This will create a proxy for SimpleClass, and return a new instance that handles invocations using the InvocationDispatcher
  * SimpleDispatcher.
  * <p>
  * Invocations on these proxies are very efficient, as no reflection is involved.
- * 
+ *
  * @author Stuart Douglas
- * 
+ *
  * @param <T>
  */
 public class ProxyFactory<T> extends AbstractProxyFactory<T> {
 
     /**
      * Overrides superclass methods and forwards calls to the dispatcher
-     * 
+     *
      * @author Stuart Douglas
-     * 
+     *
      */
     protected class ProxyMethodBodyCreator implements MethodBodyCreator {
 
@@ -86,13 +83,8 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
             // normal invocation path begins here
             ca.branchEnd(end);
             ca.aload(0);
-            ca.getfield(getClassName(), INVOCATION_DISPATCHER_FIELD, InvocationDispatcher.class);
-            // now we have the dispatcher on the stack, we need to build an invocation
-            ca.newInstruction(Invocation.class.getName());
-            ca.dup();
-            // the constructor we are using is Invocation(final Class<?> declaringClass, final MethodIdentifier
-            // methodIdentifier, final Object... args)
-            ca.loadClass(superclassMethod.getDeclaringClass().getName());
+            ca.getfield(getClassName(), INVOCATION_HANDLER_FIELD, InvocationHandler.class);
+            ca.aload(0);
             loadMethodIdentifier(superclassMethod, method);
             // now we need to stick the parameters into an array, boxing if nessesary
             String[] params = method.getParameters();
@@ -149,12 +141,9 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
                 ca.aastore();
                 loadPosition++;
             }
-            ca.invokespecial(Invocation.class.getName(), "<init>",
-                    "(Ljava/lang/Class;Lorg/jboss/invocation/MethodIdentifier;[Ljava/lang/Object;)V");
-            // now we have the invocation on top of the stack, with the dispatcher below it
-            ca.invokeinterface(InvocationDispatcher.class.getName(), "dispatch",
-                    "(Lorg/jboss/invocation/Invocation;)Lorg/jboss/invocation/InvocationReply;");
-            ca.invokevirtual(InvocationReply.class.getName(), "getReply", "()Ljava/lang/Object;");
+            ca.invokeinterface(InvocationHandler.class.getName(), "invoke",
+                    "(Ljava/lang/Object;Ljava/lang/reflect/Method;Ljava/lang/Object;)Ljava/lang/Object;");
+
             if (superclassMethod.getReturnType() != void.class) {
                 if (superclassMethod.getReturnType().isPrimitive()) {
                     Boxing.unbox(ca, method.getReturnType());
@@ -168,23 +157,23 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
 
     /**
      * Implements the methods from the {@link ProxyInstance} interface
-     * 
+     *
      * @author Stuart Douglas
-     * 
+     *
      */
     protected class ProxyInstanceMethodBodyCreator implements MethodBodyCreator {
 
         @Override
         public void overrideMethod(ClassMethod method, Method superclassMethod) {
             CodeAttribute ca = method.getCodeAttribute();
-            if (method.getName().equals("_getProxyInvocationDispatcher")) {
+            if (method.getName().equals("_getProxyInvocationHandler")) {
                 ca.aload(0);
-                ca.getfield(getClassName(), INVOCATION_DISPATCHER_FIELD, InvocationDispatcher.class);
+                ca.getfield(getClassName(), INVOCATION_HANDLER_FIELD, InvocationHandler.class);
                 ca.returnInstruction();
-            } else if (method.getName().equals("_setProxyInvocationDispatcher")) {
+            } else if (method.getName().equals("_setProxyInvocationHandler")) {
                 ca.aload(0);
                 ca.aload(1);
-                ca.putfield(getClassName(), INVOCATION_DISPATCHER_FIELD, InvocationDispatcher.class);
+                ca.putfield(getClassName(), INVOCATION_HANDLER_FIELD, InvocationHandler.class);
                 ca.returnInstruction();
             } else {
                 throw new RuntimeException("Unkown method on interface " + ProxyInstance.class);
@@ -194,9 +183,9 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
 
     /**
      * Generates a proxy constructor that delegates to super(), and then sets the constructed flag to true.
-     * 
+     *
      * @author Stuart Douglas
-     * 
+     *
      */
     protected class ProxyConstructorBodyCreator implements ConstructorBodyCreator {
 
@@ -218,9 +207,9 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
 
     /**
      * Generates the writereplace method if advanced serialization is enabled
-     * 
+     *
      * @author Stuart Douglas
-     * 
+     *
      */
     protected class WriteReplaceBodyCreator implements MethodBodyCreator {
 
@@ -241,7 +230,7 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
     /**
      * Name of the field that holds the generated dispatcher on the generated proxy
      */
-    public static final String INVOCATION_DISPATCHER_FIELD = "invocation$$dispatcher";
+    public static final String INVOCATION_HANDLER_FIELD = "invocation$$dispatcher";
 
     /**
      * atomic integer used to generate proxy names
@@ -267,7 +256,7 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
     private Class<? extends SerializableProxy> serializableProxyClass;
 
     /**
-     * 
+     *
      * @param className the name of the generated proxy
      * @param superClass the superclass of the generated proxy
      * @param classLoader the classloader to load the proxy with
@@ -281,7 +270,7 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
     }
 
     /**
-     * 
+     *
      * @param className the name of the generated proxy
      * @param superClass the superclass of the generated proxy
      * @param classLoader the classloader to load the proxy with
@@ -293,7 +282,7 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
     }
 
     /**
-     * 
+     *
      * @param className The name of the proxy class
      * @param superClass The name of proxies superclass
      * @param additionalInterfaces Additional interfaces that should be implemented by the proxy class
@@ -305,7 +294,7 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
 
     /**
      * Create a ProxyFactory for the given superclass, using the default name and the classloader of the superClass
-     * 
+     *
      * @param superClass the superclass of the generated proxy
      * @param additionalInterfaces Additional interfaces that should be implemented by the proxy class
      */
@@ -317,15 +306,15 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
     /**
      * Create a new proxy, initialising it with the given dispatcher
      */
-    public T newInstance(InvocationDispatcher dispatcher) throws InstantiationException, IllegalAccessException {
+    public T newInstance(InvocationHandler handler) throws InstantiationException, IllegalAccessException {
         T ret = newInstance();
-        ((ProxyInstance) ret)._setProxyInvocationDispatcher(dispatcher);
+        // ((ProxyInstance) ret)._setProxyInvocationDispatcher(handler);
         return ret;
     }
 
     @Override
     protected void generateClass() {
-        classFile.addField(AccessFlag.PRIVATE, INVOCATION_DISPATCHER_FIELD, InvocationDispatcher.class);
+        classFile.addField(AccessFlag.PRIVATE, INVOCATION_HANDLER_FIELD, InvocationHandler.class);
         classFile.addField(AccessFlag.PRIVATE, CONSTRUCTED_GUARD, "Z");
         if (serializableProxyClass != null) {
             createWriteReplace();
@@ -355,7 +344,7 @@ public class ProxyFactory<T> extends AbstractProxyFactory<T> {
      * default) then no writeReplace method will be generated. The proxy may still be serializable, providing that the
      * superclass and {@link InvocationDispatcher} are both serializable.
      * <p>
-     * 
+     *
      * @see SerializableProxy
      * @see DefaultSerializableProxy
      * @param serializableProxyClass
